@@ -24,7 +24,7 @@ async def gateway(
         )
 
     base_url = SERVICES[service]
-    target_url = f"{base_url}/{service}/{path}"
+    target_url = f"{base_url}/{path}"
 
     async with httpx.AsyncClient() as client:
         # Client sends http request , API gateway catches that incoming detail and creates a new outgoing request using client.request
