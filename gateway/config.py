@@ -6,3 +6,7 @@ SERVICES = {
 
 SECRET_KEY = "your-secret-key"
 ALGORITHM = "HS256"
+
+# Gateway Configuration
+CACHE_TTL = 300
+GATEWAY_TIMEOUT = 5.0

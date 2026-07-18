@@ -3,8 +3,15 @@ from fastapi import FastAPI , Request
 from router import router
 import httpx
 import time
+from exception_handler import global_exception_handler
 
 app = FastAPI(title= "API GATEWAY")
+
+app.add_exception_handler(
+    Exception,
+    global_exception_handler
+)
+
 
 @app.middleware("http")
 async def log_requests(request : Request, call_next):
