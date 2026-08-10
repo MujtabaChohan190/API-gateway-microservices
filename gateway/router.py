@@ -5,7 +5,8 @@ from fastapi import APIRouter, HTTPException, Request , Response
 import httpx
 from auth import extract_token, verify_token
 from redis_client import redis_client
-from config import SERVICES , GATEWAY_TIMEOUT , CACHE_TTL
+from config import SERVICES , settings
+from rate_limiter import check_rate_limit
 
 router = APIRouter()
 
@@ -25,13 +26,25 @@ async def gateway(
             detail=f"Service '{service}' not found.",
         )
 
-    base_url = SERVICES[service]
-    target_url = f"{base_url}/{path}"
+    base_url = SERVICES[service].rstrip("/")
+    clean_path = path.lstrip("/")
+    target_url = f"{base_url}/{clean_path}"
 
-    #JWT Authentication
-    auth_header= request.headers.get("Authorization")
-    token= extract_token(auth_header)
-    verify_token(token)
+    #JWT Authentication & Rate Limiting
+    # If the client is trying to login via the auth service, bypass token verification and rate limiting checks
+    if not (service == "auth" and path == "login"):
+        auth_header = request.headers.get("Authorization")
+        token = extract_token(auth_header)
+        payload = verify_token(token)
+
+        #Rate Limiting
+        client_id = payload["sub"]
+        allowed = await check_rate_limit(client_id)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many requests. Please try again later."
+            )
 
     #Once verified , before request goes to endpoint , we check at redis cache to see if cache hits 
     cache_key = f"{request.method}:{target_url}?{request.url.query}"
@@ -60,25 +73,26 @@ async def gateway(
                 headers=dict(request.headers), #this forwards every header , host - content length and connection 
                 params=dict(request.query_params),  
                 content=await request.body(),  
-                timeout=GATEWAY_TIMEOUT
+                timeout=settings.GATEWAY_TIMEOUT
             )
 
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code = 504,
+                detail = f"{service.capitalize()} Service timed out"
+            )
         #backend microservice was temporarily unavailable
         except httpx.RequestError:
             raise HTTPException(
                 status_code = 503,
                 detail = f"{service.capitalize()} Service is currently unavailable"
             )
-        except httpx.TimeoutException:
-            raise HTTPException(
-                status_code = 504,
-                detail = f"{service.capitalize()} Service timed out"
-            )
+        
         #HTTPX requests have succeeded , store successful get response in redis
         if request.method == "GET" and response.status_code == 200:
             await redis_client.setex(
                 cache_key, 
-                CACHE_TTL,
+                settings.CACHE_TTL,
                 response.text
             )
     
