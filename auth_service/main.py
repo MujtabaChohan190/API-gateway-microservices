@@ -24,7 +24,7 @@ def login(data: LoginRequest):
         "sub": data.username,
         "exp": datetime.utcnow() + timedelta(minutes=30)
     }
-    #here we encrypt the payload using the secret key and algorithm
+    #here we sign the jwt payload using the secret key and algorithm
     token = jwt.encode(
         payload,
         settings.SECRET_KEY,
