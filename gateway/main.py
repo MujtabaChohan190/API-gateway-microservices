@@ -1,7 +1,6 @@
 #fast api - middleware - routers - exception handlers - startup event
 from fastapi import FastAPI , Request
 from router import router
-import httpx
 import time
 from exception_handler import global_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
